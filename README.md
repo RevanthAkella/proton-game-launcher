@@ -1,8 +1,7 @@
-# Linux Proton Game Launcher (LPGL)
+# Proton Game Launcher
 
 A locally-running game launcher for Linux that runs Windows games through Proton.
 No cloud account required — everything runs on your machine.
-
 ---
 <img width="4096" height="1752" alt="Screenshot from 2026-02-17 23-09-35" src="https://github.com/user-attachments/assets/b5e35585-4cec-4329-a0ed-b35367459b52" />
 <img width="4096" height="1752" alt="Screenshot from 2026-02-17 23-09-40" src="https://github.com/user-attachments/assets/1c7bc108-fa3f-433c-8cd0-cb4b1de4585c" />
@@ -87,7 +86,7 @@ Open `config/settings.json`:
 | Field | Description |
 |---|---|
 | `defaultProtonVersion` | Proton build ID used when a game has no per-game override. Run `GET /api/proton/versions` to list detected builds. |
-| `scanPaths` | Absolute paths LPGL will recursively scan for `.exe` files. Each path must start with `/`. |
+| `scanPaths` | Absolute paths launcher will recursively scan for `.exe` files. Each path must start with `/`. |
 | `steamGridDbApiKey` | Free API key from [steamgriddb.com](https://www.steamgriddb.com/profile/preferences/api). Leave empty to skip artwork downloads. |
 | `controllerEnabled` | Set to `false` to disable the SDL2 controller bridge entirely. |
 | `theme` | Frontend theme directory under `src/frontend/`. Default: `html-template`. |
@@ -112,7 +111,7 @@ Open **http://127.0.0.1:9420** in your browser.
 4. Each new game fetches artwork from SteamGridDB in the background (requires API key)
 
 ---
-
+Note: LPGL (Linux Proton Game Launcher)
 ## Environment Variables
 
 | Variable | Default | Description |
