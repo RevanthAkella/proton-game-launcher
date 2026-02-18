@@ -1,0 +1,9 @@
+{
+  "defaultProtonVersion": "",
+  "scanPaths": [],
+  "steamGridDbApiKey": "",
+  "controllerEnabled": true,
+  "showUninstalledGames": false,
+  "theme": "html-template",
+  "language": "en"
+}
