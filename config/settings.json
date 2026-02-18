@@ -1,0 +1,10 @@
+{
+  "defaultProtonVersion": "proton-experimental",
+  "scanPaths": [
+    "/home/revanthakella/Games/Heroic/"
+  ],
+  "steamGridDbApiKey": "f5de17bbbb16641f81defbc2c39132c4",
+  "controllerEnabled": true,
+  "theme": "html-template",
+  "language": "en"
+}

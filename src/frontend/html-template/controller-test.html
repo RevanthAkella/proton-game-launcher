@@ -1,0 +1,1050 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Controller Test</title>
+  <style>
+    /* ── Reset & base ──────────────────────────────────────────────────── */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg:        #0d0d12;
+      --surface:   #15151e;
+      --border:    rgba(255,255,255,0.08);
+      --text:      #e8e8f0;
+      --text-muted:#7a7a9a;
+      --accent:    #f59e0b;
+      --accent-dim:rgba(245,158,11,0.18);
+      --inactive:  #2a2a3a;
+      --active:    #f59e0b;
+      --active-glow: 0 0 12px rgba(245,158,11,0.7);
+      --green:     #22c55e;
+    }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      font-size: 14px;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 24px 16px 48px;
+      gap: 24px;
+    }
+
+    h1 {
+      font-size: 1.3rem;
+      font-weight: 700;
+      letter-spacing: 0.04em;
+      color: var(--accent);
+    }
+
+    /* ── Status bar ────────────────────────────────────────────────────── */
+    #status-bar {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-size: 0.8rem;
+      color: var(--text-muted);
+    }
+    #ws-dot, #gp-dot {
+      width: 8px; height: 8px;
+      border-radius: 50%;
+      background: #555;
+      transition: background 0.3s;
+    }
+    #ws-dot.connected, #gp-dot.connected { background: var(--green); box-shadow: 0 0 6px var(--green); }
+    #ws-dot.disconnected, #gp-dot.disconnected { background: #ef4444; }
+
+    /* ── Last action banner ────────────────────────────────────────────── */
+    #last-action {
+      font-size: 1.1rem;
+      font-weight: 600;
+      color: var(--accent);
+      min-height: 1.6em;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      transition: opacity 0.4s;
+      opacity: 0;
+    }
+    #last-action.show { opacity: 1; }
+
+    /* ── Layout: controller + log side by side ─────────────────────────── */
+    #main-row {
+      display: flex;
+      gap: 32px;
+      align-items: flex-start;
+      flex-wrap: wrap;
+      justify-content: center;
+      width: 100%;
+      max-width: 1000px;
+    }
+
+    /* ── Controller SVG wrapper ────────────────────────────────────────── */
+    #controller-wrap {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 24px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 16px;
+    }
+
+    /* SVG button states — JS toggles the .active class on each element with data-btn */
+    .btn-circle {
+      fill: var(--inactive);
+      transition: fill 0.05s, filter 0.05s;
+    }
+    .btn-circle.active {
+      fill: var(--active);
+      filter: var(--active-glow);
+    }
+    .btn-label {
+      fill: var(--text-muted);
+      font-size: 9px;
+      font-family: inherit;
+      text-anchor: middle;
+      dominant-baseline: central;
+      pointer-events: none;
+      user-select: none;
+    }
+    .btn-label.active { fill: #000; }
+
+    /* D-pad arms */
+    .dpad-arm {
+      fill: var(--inactive);
+      transition: fill 0.05s, filter 0.05s;
+    }
+    .dpad-arm.active {
+      fill: var(--active);
+      filter: var(--active-glow);
+    }
+
+    /* Shoulder / trigger bars */
+    .shoulder {
+      fill: var(--inactive);
+      rx: 6;
+      transition: fill 0.05s;
+    }
+    .shoulder.active { fill: var(--active); }
+
+    /* Touchpad (decorative, DualSense/DualShock only) */
+    .touchpad {
+      fill: #252538;
+      stroke: rgba(255,255,255,0.08);
+      stroke-width: 1;
+    }
+
+    /* ── Controller type badge ─────────────────────────────────────────── */
+    #controller-type-badge {
+      font-size: 0.72rem;
+      color: var(--text-muted);
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      min-height: 1em;
+    }
+
+    /* ── Axis visualisers ─────────────────────────────────────────────── */
+    #axis-section {
+      display: flex;
+      gap: 32px;
+      align-items: flex-start;
+      flex-wrap: wrap;
+      justify-content: center;
+    }
+    .axis-group {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 6px;
+    }
+    .axis-label {
+      font-size: 0.72rem;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+    }
+    .axis-cross {
+      position: relative;
+      width: 80px; height: 80px;
+      background: var(--inactive);
+      border-radius: 50%;
+      border: 2px solid var(--border);
+      overflow: hidden;
+    }
+    .axis-cross::before, .axis-cross::after {
+      content: "";
+      position: absolute;
+      background: var(--border);
+    }
+    .axis-cross::before { width: 1px; height: 100%; left: 50%; top: 0; }
+    .axis-cross::after  { width: 100%; height: 1px; left: 0; top: 50%; }
+    .axis-dot {
+      position: absolute;
+      width: 14px; height: 14px;
+      background: var(--accent);
+      border-radius: 50%;
+      transform: translate(-50%, -50%);
+      top: 50%; left: 50%;
+      transition: top 0.05s, left 0.05s;
+      box-shadow: var(--active-glow);
+    }
+    .axis-values {
+      font-size: 0.72rem;
+      color: var(--text-muted);
+      text-align: center;
+      line-height: 1.8;
+    }
+    .axis-values span { color: var(--accent); }
+
+    /* ── Action log ────────────────────────────────────────────────────── */
+    #log-wrap {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 20px;
+      width: 280px;
+      min-height: 360px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      flex-shrink: 0;
+    }
+    #log-wrap h2 {
+      font-size: 0.78rem;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      color: var(--text-muted);
+    }
+    #log-list {
+      list-style: none;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      overflow-y: auto;
+      max-height: 320px;
+    }
+    #log-list li {
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
+      font-size: 0.8rem;
+      padding: 4px 8px;
+      border-radius: 6px;
+      background: rgba(255,255,255,0.03);
+      animation: fadeIn 0.15s ease;
+    }
+    @keyframes fadeIn { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; } }
+    #log-list li .action-name { color: var(--accent); font-weight: 600; }
+    #log-list li .action-time { color: var(--text-muted); font-size: 0.7rem; }
+
+    /* ── Button map reference ──────────────────────────────────────────── */
+    #reference {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 20px 24px;
+      width: 100%;
+      max-width: 1000px;
+    }
+    #reference h2 {
+      font-size: 0.78rem;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      color: var(--text-muted);
+      margin-bottom: 14px;
+    }
+    .ref-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.8rem;
+    }
+    .ref-table th {
+      text-align: left;
+      color: var(--text-muted);
+      font-weight: 600;
+      padding: 4px 12px 8px 0;
+      border-bottom: 1px solid var(--border);
+    }
+    .ref-table td {
+      padding: 5px 12px 5px 0;
+      border-bottom: 1px solid rgba(255,255,255,0.04);
+    }
+    .ref-table td:first-child { color: var(--text-muted); width: 40px; }
+    .ref-table tr.mapped td:nth-child(5) { color: var(--accent); font-weight: 600; }
+    .ref-table tr.unmapped { opacity: 0.45; }
+  </style>
+</head>
+<body>
+
+  <h1>Controller Test</h1>
+
+  <div id="status-bar">
+    <div id="ws-dot" class="disconnected"></div>
+    <span id="ws-label">WS: Connecting…</span>
+    <span style="color:var(--border);margin:0 4px">|</span>
+    <div id="gp-dot" class="disconnected"></div>
+    <span id="gp-label">No gamepad</span>
+  </div>
+
+  <div id="last-action">—</div>
+
+  <div id="main-row">
+
+    <!-- ── Controller diagram ──────────────────────────────────────────── -->
+    <div id="controller-wrap">
+
+      <!-- Default SVG — replaced dynamically when a gamepad is detected -->
+      <svg id="gamepad-svg" viewBox="0 0 420 260" width="420" height="260"
+           xmlns="http://www.w3.org/2000/svg" aria-label="Gamepad diagram">
+        <path d="M60,80 Q30,80 20,120 L10,200 Q8,230 35,235 Q55,240 70,210
+                 L90,180 L330,180 L350,210 Q365,240 385,235 Q412,230 410,200
+                 L400,120 Q390,80 360,80 Q310,60 260,55 L210,52 L160,55 Q110,60 60,80 Z"
+              fill="#1e1e2e" stroke="rgba(255,255,255,0.12)" stroke-width="1.5"/>
+        <rect class="shoulder" data-btn="4" x="55" y="58" width="80" height="18" rx="6"/>
+        <text class="btn-label" x="95" y="67">LB / L1</text>
+        <rect class="shoulder" data-btn="5" x="285" y="58" width="80" height="18" rx="6"/>
+        <text class="btn-label" x="325" y="67">RB / R1</text>
+        <rect class="shoulder" data-btn="6" x="55" y="38" width="80" height="16" rx="6"/>
+        <text class="btn-label" x="95" y="46">LT / L2</text>
+        <rect class="shoulder" data-btn="7" x="285" y="38" width="80" height="16" rx="6"/>
+        <text class="btn-label" x="325" y="46">RT / R2</text>
+        <rect class="dpad-arm" data-btn="12" x="88" y="108" width="24" height="28" rx="4"/>
+        <text class="btn-label" x="100" y="122">▲</text>
+        <rect class="dpad-arm" data-btn="13" x="88" y="152" width="24" height="28" rx="4"/>
+        <text class="btn-label" x="100" y="166">▼</text>
+        <rect class="dpad-arm" data-btn="14" x="64" y="131" width="28" height="24" rx="4"/>
+        <text class="btn-label" x="78" y="143">◀</text>
+        <rect class="dpad-arm" data-btn="15" x="108" y="131" width="28" height="24" rx="4"/>
+        <text class="btn-label" x="122" y="143">▶</text>
+        <rect x="88" y="131" width="24" height="24" fill="#1e1e2e"/>
+        <circle class="btn-circle" data-btn="8" cx="170" cy="120" r="12"/>
+        <text class="btn-label" x="170" y="120">Back</text>
+        <circle class="btn-circle" data-btn="16" cx="210" cy="108" r="16"/>
+        <text class="btn-label" x="210" y="108">⊙</text>
+        <circle class="btn-circle" data-btn="9" cx="250" cy="120" r="12"/>
+        <text class="btn-label" x="250" y="120">Start</text>
+        <circle class="btn-circle" data-btn="2" cx="310" cy="110" r="14"/>
+        <text class="btn-label" x="310" y="110">Y/△</text>
+        <circle class="btn-circle" data-btn="3" cx="290" cy="130" r="14"/>
+        <text class="btn-label" x="290" y="130">X/□</text>
+        <circle class="btn-circle" data-btn="1" cx="330" cy="130" r="14"/>
+        <text class="btn-label" x="330" y="130">B/○</text>
+        <circle class="btn-circle" data-btn="0" cx="310" cy="150" r="14"/>
+        <text class="btn-label" x="310" y="150">A/✕</text>
+        <circle cx="155" cy="160" r="22" fill="#1a1a28" stroke="rgba(255,255,255,0.1)" stroke-width="1"/>
+        <circle class="btn-circle" data-btn="10" cx="155" cy="160" r="10"/>
+        <text class="btn-label" x="155" y="190" style="font-size:8px;fill:#555">L3</text>
+        <circle cx="255" cy="160" r="22" fill="#1a1a28" stroke="rgba(255,255,255,0.1)" stroke-width="1"/>
+        <circle class="btn-circle" data-btn="11" cx="255" cy="160" r="10"/>
+        <text class="btn-label" x="255" y="190" style="font-size:8px;fill:#555">R3</text>
+      </svg>
+
+      <div id="controller-type-badge">Generic Gamepad</div>
+
+      <!-- ── Axis visualisers ─────────────────────────────────────────── -->
+      <div id="axis-section">
+        <!-- Left stick -->
+        <div class="axis-group">
+          <div class="axis-label">Left stick</div>
+          <div class="axis-cross">
+            <div class="axis-dot" id="axis-left-dot"></div>
+          </div>
+          <div class="axis-values">
+            <div>X: <span id="ax-lx">0.00</span></div>
+            <div>Y: <span id="ax-ly">0.00</span></div>
+          </div>
+        </div>
+
+        <!-- Right stick -->
+        <div class="axis-group">
+          <div class="axis-label">Right stick</div>
+          <div class="axis-cross">
+            <div class="axis-dot" id="axis-right-dot"></div>
+          </div>
+          <div class="axis-values">
+            <div>X: <span id="ax-rx">0.00</span></div>
+            <div>Y: <span id="ax-ry">0.00</span></div>
+          </div>
+        </div>
+      </div>
+
+    </div><!-- /controller-wrap -->
+
+    <!-- ── Action log ──────────────────────────────────────────────────── -->
+    <div id="log-wrap">
+      <h2>Action log</h2>
+      <ul id="log-list"></ul>
+    </div>
+
+  </div><!-- /main-row -->
+
+  <!-- ── Button map reference table ─────────────────────────────────────── -->
+  <div id="reference">
+    <h2>Standard Gamepad API Button Map</h2>
+    <table class="ref-table">
+      <thead>
+        <tr>
+          <th>#</th>
+          <th>Xbox Series</th>
+          <th>DualSense (PS5)</th>
+          <th>Generic USB</th>
+          <th>Action</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr class="mapped">  <td>0</td>  <td>A</td>               <td>Cross (✕)</td>    <td>Button 1</td>   <td>confirm</td></tr>
+        <tr class="mapped">  <td>1</td>  <td>B</td>               <td>Circle (○)</td>   <td>Button 2</td>   <td>back</td></tr>
+        <tr class="mapped">  <td>2</td>  <td>X</td>               <td>Square (□)</td>   <td>Button 3</td>   <td>menu</td></tr>
+        <tr class="mapped">  <td>3</td>  <td>Y</td>               <td>Triangle (△)</td> <td>Button 4</td>   <td>menu</td></tr>
+        <tr class="mapped">  <td>4</td>  <td>Left Bumper (LB)</td><td>L1</td>           <td>Button 5</td>   <td>shoulder-left</td></tr>
+        <tr class="mapped">  <td>5</td>  <td>Right Bumper (RB)</td><td>R1</td>          <td>Button 6</td>   <td>shoulder-right</td></tr>
+        <tr class="mapped">  <td>6</td>  <td>Left Trigger (LT)</td><td>L2</td>          <td>Trigger L</td>  <td>trigger-left</td></tr>
+        <tr class="mapped">  <td>7</td>  <td>Right Trigger (RT)</td><td>R2</td>         <td>Trigger R</td>  <td>trigger-right</td></tr>
+        <tr class="mapped">  <td>8</td>  <td>Back / View</td>     <td>Create</td>       <td>Select</td>     <td>back</td></tr>
+        <tr class="mapped">  <td>9</td>  <td>Start / Menu</td>    <td>Options</td>      <td>Start</td>      <td>start</td></tr>
+        <tr class="unmapped"><td>10</td> <td>L3 (click)</td>      <td>L3 (click)</td>   <td>L3</td>         <td>—</td></tr>
+        <tr class="unmapped"><td>11</td> <td>R3 (click)</td>      <td>R3 (click)</td>   <td>R3</td>         <td>—</td></tr>
+        <tr class="mapped">  <td>12</td> <td>D-pad Up</td>        <td>D-pad Up</td>     <td>D-pad Up</td>   <td>navigate-up</td></tr>
+        <tr class="mapped">  <td>13</td> <td>D-pad Down</td>      <td>D-pad Down</td>   <td>D-pad Down</td> <td>navigate-down</td></tr>
+        <tr class="mapped">  <td>14</td> <td>D-pad Left</td>      <td>D-pad Left</td>   <td>D-pad Left</td> <td>navigate-left</td></tr>
+        <tr class="mapped">  <td>15</td> <td>D-pad Right</td>     <td>D-pad Right</td>  <td>D-pad Right</td><td>navigate-right</td></tr>
+        <tr class="mapped">  <td>16</td> <td>Xbox / Guide</td>    <td>PS button</td>    <td>Home</td>       <td>menu</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- ── Raw input debug panel ─────────────────────────────────────────── -->
+  <div id="raw-debug" style="background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:20px 24px;width:100%;max-width:1000px;">
+    <h2 style="font-size:0.78rem;text-transform:uppercase;letter-spacing:0.1em;color:var(--text-muted);margin-bottom:14px;">Raw Gamepad Data (live)</h2>
+    <div style="display:flex;gap:32px;flex-wrap:wrap;">
+      <div>
+        <h3 style="font-size:0.72rem;color:var(--accent);margin-bottom:8px;">Buttons</h3>
+        <pre id="raw-buttons" style="font-size:0.72rem;color:var(--text-muted);line-height:1.6;white-space:pre;">No gamepad</pre>
+      </div>
+      <div>
+        <h3 style="font-size:0.72rem;color:var(--accent);margin-bottom:8px;">Axes</h3>
+        <pre id="raw-axes" style="font-size:0.72rem;color:var(--text-muted);line-height:1.6;white-space:pre;">No gamepad</pre>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // ══════════════════════════════════════════════════════════════════════
+    // Controller SVG templates
+    // Each returns a complete <svg> string with id="gamepad-svg".
+    // All use the same data-btn indices (W3C Standard Gamepad 0-16).
+    // Every data-btn element MUST be immediately followed by a
+    // <text class="btn-label"> sibling (flashBtns reads nextElementSibling).
+    // Trigger rects (data-btn 6/7) must have class="shoulder" and width="80".
+    // ══════════════════════════════════════════════════════════════════════
+
+    const CONTROLLER_SVGS = {
+
+      // ── Generic / fallback ──────────────────────────────────────────
+      generic: () => `<svg id="gamepad-svg" viewBox="0 0 420 260" width="420" height="260"
+           xmlns="http://www.w3.org/2000/svg" aria-label="Gamepad diagram — Generic">
+        <path d="M60,80 Q30,80 20,120 L10,200 Q8,230 35,235 Q55,240 70,210
+                 L90,180 L330,180 L350,210 Q365,240 385,235 Q412,230 410,200
+                 L400,120 Q390,80 360,80 Q310,60 260,55 L210,52 L160,55 Q110,60 60,80 Z"
+              fill="#1e1e2e" stroke="rgba(255,255,255,0.12)" stroke-width="1.5"/>
+        <rect class="shoulder" data-btn="4" x="55" y="58" width="80" height="18" rx="6"/>
+        <text class="btn-label" x="95" y="67">LB / L1</text>
+        <rect class="shoulder" data-btn="5" x="285" y="58" width="80" height="18" rx="6"/>
+        <text class="btn-label" x="325" y="67">RB / R1</text>
+        <rect class="shoulder" data-btn="6" x="55" y="38" width="80" height="16" rx="6"/>
+        <text class="btn-label" x="95" y="46">LT / L2</text>
+        <rect class="shoulder" data-btn="7" x="285" y="38" width="80" height="16" rx="6"/>
+        <text class="btn-label" x="325" y="46">RT / R2</text>
+        <rect class="dpad-arm" data-btn="12" x="88" y="108" width="24" height="28" rx="4"/>
+        <text class="btn-label" x="100" y="122">▲</text>
+        <rect class="dpad-arm" data-btn="13" x="88" y="152" width="24" height="28" rx="4"/>
+        <text class="btn-label" x="100" y="166">▼</text>
+        <rect class="dpad-arm" data-btn="14" x="64" y="131" width="28" height="24" rx="4"/>
+        <text class="btn-label" x="78" y="143">◀</text>
+        <rect class="dpad-arm" data-btn="15" x="108" y="131" width="28" height="24" rx="4"/>
+        <text class="btn-label" x="122" y="143">▶</text>
+        <rect x="88" y="131" width="24" height="24" fill="#1e1e2e"/>
+        <circle class="btn-circle" data-btn="8" cx="170" cy="120" r="12"/>
+        <text class="btn-label" x="170" y="120">Back</text>
+        <circle class="btn-circle" data-btn="16" cx="210" cy="108" r="16"/>
+        <text class="btn-label" x="210" y="108">⊙</text>
+        <circle class="btn-circle" data-btn="9" cx="250" cy="120" r="12"/>
+        <text class="btn-label" x="250" y="120">Start</text>
+        <circle class="btn-circle" data-btn="2" cx="310" cy="110" r="14"/>
+        <text class="btn-label" x="310" y="110">Y/△</text>
+        <circle class="btn-circle" data-btn="3" cx="290" cy="130" r="14"/>
+        <text class="btn-label" x="290" y="130">X/□</text>
+        <circle class="btn-circle" data-btn="1" cx="330" cy="130" r="14"/>
+        <text class="btn-label" x="330" y="130">B/○</text>
+        <circle class="btn-circle" data-btn="0" cx="310" cy="150" r="14"/>
+        <text class="btn-label" x="310" y="150">A/✕</text>
+        <circle cx="155" cy="160" r="22" fill="#1a1a28" stroke="rgba(255,255,255,0.1)" stroke-width="1"/>
+        <circle class="btn-circle" data-btn="10" cx="155" cy="160" r="10"/>
+        <text class="btn-label" x="155" y="190" style="font-size:8px;fill:#555">L3</text>
+        <circle cx="255" cy="160" r="22" fill="#1a1a28" stroke="rgba(255,255,255,0.1)" stroke-width="1"/>
+        <circle class="btn-circle" data-btn="11" cx="255" cy="160" r="10"/>
+        <text class="btn-label" x="255" y="190" style="font-size:8px;fill:#555">R3</text>
+      </svg>`,
+
+      // ── Xbox ────────────────────────────────────────────────────────
+      xbox: () => `<svg id="gamepad-svg" viewBox="0 0 420 260" width="420" height="260"
+           xmlns="http://www.w3.org/2000/svg" aria-label="Gamepad diagram — Xbox">
+        <!-- Body — rounded Xbox shape with asymmetric stick layout -->
+        <path d="M55,78 Q25,78 16,118 L6,198 Q4,228 32,234 Q52,238 68,208
+                 L88,178 Q100,162 120,158 L300,158 Q320,162 332,178
+                 L352,208 Q368,238 388,234 Q416,228 414,198
+                 L404,118 Q395,78 365,78 Q320,62 270,56 L210,52 L150,56 Q100,62 55,78 Z"
+              fill="#1e1e2e" stroke="#107c10" stroke-width="1.5" stroke-opacity="0.4"/>
+        <!-- Xbox guide circle highlight -->
+        <circle cx="210" cy="52" r="5" fill="#107c10" opacity="0.3"/>
+        <rect class="shoulder" data-btn="4" x="50" y="56" width="80" height="18" rx="6"/>
+        <text class="btn-label" x="90" y="65">LB</text>
+        <rect class="shoulder" data-btn="5" x="290" y="56" width="80" height="18" rx="6"/>
+        <text class="btn-label" x="330" y="65">RB</text>
+        <rect class="shoulder" data-btn="6" x="50" y="36" width="80" height="16" rx="6"/>
+        <text class="btn-label" x="90" y="44">LT</text>
+        <rect class="shoulder" data-btn="7" x="290" y="36" width="80" height="16" rx="6"/>
+        <text class="btn-label" x="330" y="44">RT</text>
+        <!-- D-pad (lower-right of left stick) -->
+        <rect class="dpad-arm" data-btn="12" x="138" y="118" width="24" height="28" rx="4"/>
+        <text class="btn-label" x="150" y="132">▲</text>
+        <rect class="dpad-arm" data-btn="13" x="138" y="162" width="24" height="28" rx="4"/>
+        <text class="btn-label" x="150" y="176">▼</text>
+        <rect class="dpad-arm" data-btn="14" x="114" y="141" width="28" height="24" rx="4"/>
+        <text class="btn-label" x="128" y="153">◀</text>
+        <rect class="dpad-arm" data-btn="15" x="158" y="141" width="28" height="24" rx="4"/>
+        <text class="btn-label" x="172" y="153">▶</text>
+        <rect x="138" y="141" width="24" height="24" fill="#1e1e2e"/>
+        <!-- View (btn 8) -->
+        <circle class="btn-circle" data-btn="8" cx="180" cy="100" r="10"/>
+        <text class="btn-label" x="180" y="100" style="font-size:7px">View</text>
+        <!-- Xbox guide (btn 16) -->
+        <circle class="btn-circle" data-btn="16" cx="210" cy="88" r="14"/>
+        <text class="btn-label" x="210" y="88" style="font-size:10px">X</text>
+        <!-- Menu (btn 9) -->
+        <circle class="btn-circle" data-btn="9" cx="240" cy="100" r="10"/>
+        <text class="btn-label" x="240" y="100" style="font-size:7px">Menu</text>
+        <!-- Face buttons — Xbox diamond: Y top, X left, B right, A bottom -->
+        <circle class="btn-circle" data-btn="3" cx="320" cy="92" r="14"/>
+        <text class="btn-label" x="320" y="92" style="fill:#ffd700">Y</text>
+        <circle class="btn-circle" data-btn="2" cx="300" cy="112" r="14"/>
+        <text class="btn-label" x="300" y="112" style="fill:#0078d4">X</text>
+        <circle class="btn-circle" data-btn="1" cx="340" cy="112" r="14"/>
+        <text class="btn-label" x="340" y="112" style="fill:#e81123">B</text>
+        <circle class="btn-circle" data-btn="0" cx="320" cy="132" r="14"/>
+        <text class="btn-label" x="320" y="132" style="fill:#7fba00">A</text>
+        <!-- Left stick (upper-left — Xbox asymmetric) -->
+        <circle cx="90" cy="112" r="24" fill="#1a1a28" stroke="rgba(255,255,255,0.1)" stroke-width="1"/>
+        <circle class="btn-circle" data-btn="10" cx="90" cy="112" r="10"/>
+        <text class="btn-label" x="90" y="144" style="font-size:8px;fill:#555">L3</text>
+        <!-- Right stick (lower-right — Xbox asymmetric) -->
+        <circle cx="270" cy="142" r="24" fill="#1a1a28" stroke="rgba(255,255,255,0.1)" stroke-width="1"/>
+        <circle class="btn-circle" data-btn="11" cx="270" cy="142" r="10"/>
+        <text class="btn-label" x="270" y="174" style="font-size:8px;fill:#555">R3</text>
+      </svg>`,
+
+      // ── DualSense (PS5) ─────────────────────────────────────────────
+      dualsense: () => `<svg id="gamepad-svg" viewBox="0 0 420 260" width="420" height="260"
+           xmlns="http://www.w3.org/2000/svg" aria-label="Gamepad diagram — DualSense">
+        <!-- Body — wide symmetric DualSense shape -->
+        <path d="M50,82 Q18,82 12,122 L2,202 Q0,232 28,236 Q48,240 65,212
+                 L82,186 Q95,170 115,166 L305,166 Q325,170 338,186
+                 L355,212 Q372,240 392,236 Q420,232 418,202
+                 L408,122 Q402,82 370,82 Q325,65 270,58 L210,54 L150,58 Q95,65 50,82 Z"
+              fill="#1e1e2e" stroke="#0070d1" stroke-width="1.5" stroke-opacity="0.3"/>
+        <!-- Touchpad (decorative) -->
+        <rect class="touchpad" x="160" y="82" width="100" height="50" rx="8"/>
+        <rect class="shoulder" data-btn="4" x="45" y="60" width="80" height="18" rx="6"/>
+        <text class="btn-label" x="85" y="69">L1</text>
+        <rect class="shoulder" data-btn="5" x="295" y="60" width="80" height="18" rx="6"/>
+        <text class="btn-label" x="335" y="69">R1</text>
+        <rect class="shoulder" data-btn="6" x="45" y="40" width="80" height="16" rx="6"/>
+        <text class="btn-label" x="85" y="48">L2</text>
+        <rect class="shoulder" data-btn="7" x="295" y="40" width="80" height="16" rx="6"/>
+        <text class="btn-label" x="335" y="48">R2</text>
+        <!-- D-pad (left side, symmetric position) -->
+        <rect class="dpad-arm" data-btn="12" x="78" y="108" width="24" height="28" rx="4"/>
+        <text class="btn-label" x="90" y="122">▲</text>
+        <rect class="dpad-arm" data-btn="13" x="78" y="152" width="24" height="28" rx="4"/>
+        <text class="btn-label" x="90" y="166">▼</text>
+        <rect class="dpad-arm" data-btn="14" x="54" y="131" width="28" height="24" rx="4"/>
+        <text class="btn-label" x="68" y="143">◀</text>
+        <rect class="dpad-arm" data-btn="15" x="98" y="131" width="28" height="24" rx="4"/>
+        <text class="btn-label" x="112" y="143">▶</text>
+        <rect x="78" y="131" width="24" height="24" fill="#1e1e2e"/>
+        <!-- Create (btn 8) -->
+        <circle class="btn-circle" data-btn="8" cx="155" cy="100" r="10"/>
+        <text class="btn-label" x="155" y="100" style="font-size:6px">Create</text>
+        <!-- PS button (btn 16) -->
+        <circle class="btn-circle" data-btn="16" cx="210" cy="148" r="12"/>
+        <text class="btn-label" x="210" y="148" style="font-size:8px">PS</text>
+        <!-- Options (btn 9) -->
+        <circle class="btn-circle" data-btn="9" cx="265" cy="100" r="10"/>
+        <text class="btn-label" x="265" y="100" style="font-size:6px">Options</text>
+        <!-- Face buttons — PlayStation: △ top, □ left, ○ right, ✕ bottom -->
+        <circle class="btn-circle" data-btn="3" cx="332" cy="108" r="14"/>
+        <text class="btn-label" x="332" y="108" style="fill:#00d4aa">△</text>
+        <circle class="btn-circle" data-btn="2" cx="312" cy="128" r="14"/>
+        <text class="btn-label" x="312" y="128" style="fill:#e74292">□</text>
+        <circle class="btn-circle" data-btn="1" cx="352" cy="128" r="14"/>
+        <text class="btn-label" x="352" y="128" style="fill:#ef4444">○</text>
+        <circle class="btn-circle" data-btn="0" cx="332" cy="148" r="14"/>
+        <text class="btn-label" x="332" y="148" style="fill:#4d9de0">✕</text>
+        <!-- Left stick (symmetric — both sticks lower) -->
+        <circle cx="130" cy="186" r="22" fill="#1a1a28" stroke="rgba(255,255,255,0.1)" stroke-width="1"/>
+        <circle class="btn-circle" data-btn="10" cx="130" cy="186" r="10"/>
+        <text class="btn-label" x="130" y="216" style="font-size:8px;fill:#555">L3</text>
+        <!-- Right stick (symmetric — both sticks lower) -->
+        <circle cx="290" cy="186" r="22" fill="#1a1a28" stroke="rgba(255,255,255,0.1)" stroke-width="1"/>
+        <circle class="btn-circle" data-btn="11" cx="290" cy="186" r="10"/>
+        <text class="btn-label" x="290" y="216" style="font-size:8px;fill:#555">R3</text>
+      </svg>`,
+
+      // ── DualShock 4 (PS4) ───────────────────────────────────────────
+      dualshock: () => `<svg id="gamepad-svg" viewBox="0 0 420 260" width="420" height="260"
+           xmlns="http://www.w3.org/2000/svg" aria-label="Gamepad diagram — DualShock 4">
+        <!-- Body — narrower symmetric DualShock shape -->
+        <path d="M58,82 Q28,82 18,120 L8,200 Q6,230 33,234 Q52,238 67,210
+                 L85,182 Q98,168 118,164 L302,164 Q322,168 335,182
+                 L353,210 Q368,238 387,234 Q414,230 412,200
+                 L402,120 Q392,82 362,82 Q318,66 268,58 L210,54 L152,58 Q102,66 58,82 Z"
+              fill="#1e1e2e" stroke="#003087" stroke-width="1.5" stroke-opacity="0.3"/>
+        <!-- Touchpad (smaller than DualSense) -->
+        <rect class="touchpad" x="170" y="84" width="80" height="40" rx="6"/>
+        <rect class="shoulder" data-btn="4" x="52" y="60" width="80" height="18" rx="6"/>
+        <text class="btn-label" x="92" y="69">L1</text>
+        <rect class="shoulder" data-btn="5" x="288" y="60" width="80" height="18" rx="6"/>
+        <text class="btn-label" x="328" y="69">R1</text>
+        <rect class="shoulder" data-btn="6" x="52" y="40" width="80" height="16" rx="6"/>
+        <text class="btn-label" x="92" y="48">L2</text>
+        <rect class="shoulder" data-btn="7" x="288" y="40" width="80" height="16" rx="6"/>
+        <text class="btn-label" x="328" y="48">R2</text>
+        <!-- D-pad -->
+        <rect class="dpad-arm" data-btn="12" x="82" y="108" width="24" height="28" rx="4"/>
+        <text class="btn-label" x="94" y="122">▲</text>
+        <rect class="dpad-arm" data-btn="13" x="82" y="152" width="24" height="28" rx="4"/>
+        <text class="btn-label" x="94" y="166">▼</text>
+        <rect class="dpad-arm" data-btn="14" x="58" y="131" width="28" height="24" rx="4"/>
+        <text class="btn-label" x="72" y="143">◀</text>
+        <rect class="dpad-arm" data-btn="15" x="102" y="131" width="28" height="24" rx="4"/>
+        <text class="btn-label" x="116" y="143">▶</text>
+        <rect x="82" y="131" width="24" height="24" fill="#1e1e2e"/>
+        <!-- Share (btn 8) -->
+        <circle class="btn-circle" data-btn="8" cx="158" cy="100" r="10"/>
+        <text class="btn-label" x="158" y="100" style="font-size:6px">Share</text>
+        <!-- PS button (btn 16) -->
+        <circle class="btn-circle" data-btn="16" cx="210" cy="146" r="12"/>
+        <text class="btn-label" x="210" y="146" style="font-size:8px">PS</text>
+        <!-- Options (btn 9) -->
+        <circle class="btn-circle" data-btn="9" cx="262" cy="100" r="10"/>
+        <text class="btn-label" x="262" y="100" style="font-size:6px">Options</text>
+        <!-- Face buttons — PlayStation -->
+        <circle class="btn-circle" data-btn="3" cx="328" cy="108" r="14"/>
+        <text class="btn-label" x="328" y="108" style="fill:#00d4aa">△</text>
+        <circle class="btn-circle" data-btn="2" cx="308" cy="128" r="14"/>
+        <text class="btn-label" x="308" y="128" style="fill:#e74292">□</text>
+        <circle class="btn-circle" data-btn="1" cx="348" cy="128" r="14"/>
+        <text class="btn-label" x="348" y="128" style="fill:#ef4444">○</text>
+        <circle class="btn-circle" data-btn="0" cx="328" cy="148" r="14"/>
+        <text class="btn-label" x="328" y="148" style="fill:#4d9de0">✕</text>
+        <!-- Left stick (symmetric — both sticks lower) -->
+        <circle cx="135" cy="184" r="22" fill="#1a1a28" stroke="rgba(255,255,255,0.1)" stroke-width="1"/>
+        <circle class="btn-circle" data-btn="10" cx="135" cy="184" r="10"/>
+        <text class="btn-label" x="135" y="214" style="font-size:8px;fill:#555">L3</text>
+        <!-- Right stick (symmetric — both sticks lower) -->
+        <circle cx="285" cy="184" r="22" fill="#1a1a28" stroke="rgba(255,255,255,0.1)" stroke-width="1"/>
+        <circle class="btn-circle" data-btn="11" cx="285" cy="184" r="10"/>
+        <text class="btn-label" x="285" y="214" style="font-size:8px;fill:#555">R3</text>
+      </svg>`,
+    };
+
+    const TYPE_LABELS = {
+      xbox:      "Xbox / Microsoft",
+      dualsense: "DualSense (PS5)",
+      dualshock: "DualShock 4 (PS4)",
+      generic:   "Generic Gamepad",
+    };
+
+    // ── Controller type detection ─────────────────────────────────────
+    function detectControllerType(id) {
+      const s = (id || "").toLowerCase();
+      if (s.includes("xbox") || s.includes("microsoft") || s.includes("xinput")) return "xbox";
+      if (s.includes("dualsense") || s.includes("054c:0ce6")) return "dualsense";
+      if (s.includes("dualshock") || s.includes("054c:05c4") || s.includes("054c:09cc")) return "dualshock";
+      return "generic";
+    }
+
+    let _currentControllerType = "generic";
+
+    // ── SVG swap ──────────────────────────────────────────────────────
+    function swapSVG(type) {
+      const svgEl = document.getElementById("gamepad-svg");
+      if (!svgEl) return;
+      const markup = (CONTROLLER_SVGS[type] || CONTROLLER_SVGS.generic)();
+      const tmp = document.createElement("div");
+      tmp.innerHTML = markup;
+      const newSvg = tmp.firstElementChild;
+      if (newSvg) svgEl.replaceWith(newSvg);
+      rebuildBtnEls();
+      const badge = document.getElementById("controller-type-badge");
+      if (badge) badge.textContent = TYPE_LABELS[type] || type;
+    }
+
+    function maybeSwapSVG(gamepadId) {
+      const type = detectControllerType(gamepadId);
+      if (type === _currentControllerType) return;
+      _currentControllerType = type;
+      swapSVG(type);
+    }
+
+    // ── DOM refs ────────────────────────────────────────────────────────
+    const wsDot      = document.getElementById("ws-dot");
+    const wsLabel    = document.getElementById("ws-label");
+    const lastAction = document.getElementById("last-action");
+    const logList    = document.getElementById("log-list");
+    const rawButtonsEl = document.getElementById("raw-buttons");
+    const rawAxesEl    = document.getElementById("raw-axes");
+
+    // Axis DOM refs
+    const axLxEl     = document.getElementById("ax-lx");
+    const axLyEl     = document.getElementById("ax-ly");
+    const axRxEl     = document.getElementById("ax-rx");
+    const axRyEl     = document.getElementById("ax-ry");
+    const axLeftDot  = document.getElementById("axis-left-dot");
+    const axRightDot = document.getElementById("axis-right-dot");
+
+    // Build lookup: btn index → SVG element (standard Gamepad API indices)
+    const btnEls = new Map();
+    function rebuildBtnEls() {
+      btnEls.clear();
+      document.querySelectorAll("[data-btn]").forEach((el) => {
+        btnEls.set(Number(el.dataset.btn), el);
+      });
+    }
+    rebuildBtnEls();
+
+    // ── Backend SDL2 → Standard Gamepad API index mapping ───────────────
+    const ACTION_BTNS = {
+      "confirm":        [0],
+      "back":           [1, 8],
+      "menu":           [3, 2, 16],
+      "shoulder-left":   [4],
+      "shoulder-right":  [5],
+      "trigger-left":    [6],
+      "trigger-right":   [7],
+      "start":          [9],
+      "navigate-up":    [12],
+      "navigate-down":  [13],
+      "navigate-left":  [14],
+      "navigate-right": [15],
+    };
+
+    // ── Standard Gamepad API button names ───────────────────────────────
+    const GAMEPAD_BTN_NAMES = {
+      0:  "A / Cross",
+      1:  "B / Circle",
+      2:  "Y / Triangle",
+      3:  "X / Square",
+      4:  "LB / L1",
+      5:  "RB / R1",
+      6:  "LT / L2",
+      7:  "RT / R2",
+      8:  "Back / Select",
+      9:  "Start / Options",
+      10: "L3",
+      11: "R3",
+      12: "D-Up",
+      13: "D-Down",
+      14: "D-Left",
+      15: "D-Right",
+      16: "Guide / Home",
+    };
+
+    // ── Flash a button ───────────────────────────────────────────────────
+    function flashBtns(indices) {
+      for (const idx of indices) {
+        const el = btnEls.get(idx);
+        if (!el) continue;
+        el.classList.add("active");
+        const label = el.nextElementSibling;
+        if (label && label.classList.contains("btn-label")) {
+          label.classList.add("active");
+        }
+
+        setTimeout(() => {
+          el.classList.remove("active");
+          if (label && label.classList.contains("btn-label")) {
+            label.classList.remove("active");
+          }
+        }, 300);
+      }
+    }
+
+    // ── Log entry ────────────────────────────────────────────────────────
+    function addLog(action, ts) {
+      const time = new Date(ts).toLocaleTimeString([], { hour12: false, hour: "2-digit", minute: "2-digit", second: "2-digit" });
+      const li   = document.createElement("li");
+      li.innerHTML = `<span class="action-name">${action}</span><span class="action-time">${time}</span>`;
+      logList.prepend(li);
+      while (logList.children.length > 30) logList.lastChild.remove();
+    }
+
+    // ── Update last-action banner ────────────────────────────────────────
+    let _bannerTimer;
+    function showBanner(action) {
+      lastAction.textContent = action;
+      lastAction.classList.remove("show");
+      void lastAction.offsetWidth; // reflow
+      lastAction.classList.add("show");
+      clearTimeout(_bannerTimer);
+      _bannerTimer = setTimeout(() => lastAction.classList.remove("show"), 1200);
+    }
+
+    // ── Axis dot update ──────────────────────────────────────────────────
+    function updateStickDot(dot, labelX, labelY, x, y) {
+      const cx = 50 + x * 33;
+      const cy = 50 + y * 33;
+      dot.style.left = `${cx}%`;
+      dot.style.top  = `${cy}%`;
+      labelX.textContent = x.toFixed(2);
+      labelY.textContent = y.toFixed(2);
+    }
+
+    // ── WebSocket (backend SDL2 events) ──────────────────────────────────
+    let _ws;
+    let _reconnectTimer;
+
+    function connect() {
+      const proto = location.protocol === "https:" ? "wss:" : "ws:";
+      _ws = new WebSocket(`${proto}//${location.host}/ws`);
+
+      _ws.addEventListener("open", () => {
+        wsDot.className = "connected";
+        wsLabel.textContent = "WS: Connected";
+      });
+
+      _ws.addEventListener("close", () => {
+        wsDot.className = "disconnected";
+        wsLabel.textContent = "WS: Reconnecting…";
+        clearTimeout(_reconnectTimer);
+        _reconnectTimer = setTimeout(connect, 3000);
+      });
+
+      _ws.addEventListener("message", (e) => {
+        let msg;
+        try { msg = JSON.parse(e.data); } catch { return; }
+
+        if (msg.type === "controller") {
+          const action  = msg.action;
+          const indices = ACTION_BTNS[action] ?? [];
+
+          flashBtns(indices);
+          showBanner(action);
+          addLog(action, msg.timestamp ?? Date.now());
+        }
+
+        if (msg.type === "controller_axis") {
+          if (msg.axis === 0 || msg.axis === 1) {
+            const x = msg.axis === 0 ? msg.value : parseFloat(axLxEl.textContent);
+            const y = msg.axis === 1 ? msg.value : parseFloat(axLyEl.textContent);
+            updateStickDot(axLeftDot, axLxEl, axLyEl, x, y);
+          }
+        }
+      });
+    }
+
+    connect();
+    updateStickDot(axLeftDot, axLxEl, axLyEl, 0, 0);
+    updateStickDot(axRightDot, axRxEl, axRyEl, 0, 0);
+
+    // ── Browser Gamepad API polling ────────────────────────────────────
+    const DEAD_ZONE         = 0.15;
+    const TRIGGER_THRESHOLD = 0.15;
+    const _prevButtons  = new Map();
+    const _prevTriggers = new Map();
+
+    /** Gamepad status display */
+    const gpDot   = document.getElementById("gp-dot");
+    const gpLabel = document.getElementById("gp-label");
+
+    let _gpPolling = false;
+    let _gpRafId   = 0;
+    let _gpConnectedCount = 0;
+
+    function _gpStartLoop() {
+      if (_gpPolling) return;
+      _gpPolling = true;
+      _gpRafId = requestAnimationFrame(pollGamepads);
+    }
+
+    function _gpStopLoop() {
+      if (!_gpPolling) return;
+      _gpPolling = false;
+      cancelAnimationFrame(_gpRafId);
+    }
+
+    window.addEventListener("gamepadconnected", (e) => {
+      gpDot.className   = "connected";
+      gpLabel.textContent = `Gamepad: ${e.gamepad.id}`;
+      addLog("gamepad-connected", Date.now());
+      maybeSwapSVG(e.gamepad.id);
+      _gpConnectedCount++;
+      if (!document.hidden) _gpStartLoop();
+    });
+
+    window.addEventListener("gamepaddisconnected", (e) => {
+      _prevButtons.delete(e.gamepad.index);
+      _prevTriggers.delete(e.gamepad.index);
+      addLog("gamepad-disconnected", Date.now());
+      _gpConnectedCount = Math.max(0, _gpConnectedCount - 1);
+
+      // Check if any gamepads remain
+      if (_gpConnectedCount === 0) {
+        _gpStopLoop();
+        gpDot.className   = "disconnected";
+        gpLabel.textContent = "No gamepad";
+        _currentControllerType = null;
+        swapSVG("generic");
+        _currentControllerType = "generic";
+        rawButtonsEl.textContent = "No buttons";
+        rawAxesEl.textContent    = "No axes";
+      } else {
+        const remaining = Array.from(navigator.getGamepads()).filter(g => g);
+        if (remaining.length > 0) {
+          gpLabel.textContent = `Gamepad: ${remaining[0].id}`;
+          maybeSwapSVG(remaining[0].id);
+        }
+      }
+    });
+
+    document.addEventListener("visibilitychange", () => {
+      if (document.hidden) {
+        _gpStopLoop();
+      } else if (_gpConnectedCount > 0) {
+        _gpStartLoop();
+      }
+    });
+
+    function pollGamepads() {
+      const gamepads = navigator.getGamepads();
+      for (const gp of gamepads) {
+        if (!gp) continue;
+
+        // Update status indicator on first detection
+        if (gpDot.className !== "connected") {
+          gpDot.className   = "connected";
+          gpLabel.textContent = `Gamepad: ${gp.id}`;
+        }
+
+        // Auto-detect and swap SVG for already-connected gamepads
+        maybeSwapSVG(gp.id);
+
+        const prev = _prevButtons.get(gp.index) ?? new Array(gp.buttons.length).fill(false);
+
+        // ── Buttons (skip 6/7 — analog triggers handled below) ────────
+        for (let i = 0; i < gp.buttons.length; i++) {
+          if (i === 6 || i === 7) continue;
+          const pressed = gp.buttons[i].pressed;
+          if (pressed && !prev[i]) {
+            flashBtns([i]);
+            const name = GAMEPAD_BTN_NAMES[i] ?? `Button ${i}`;
+            showBanner(name);
+            addLog(`btn[${i}] ${name}`, Date.now());
+          }
+          prev[i] = pressed;
+        }
+        _prevButtons.set(gp.index, prev);
+
+        // ── Analog triggers — read from axes (Linux: axis 4=LT, axis 5=RT)
+        const prevTrig = _prevTriggers.get(gp.index) ?? [false, false];
+        const triggerAxes = [4, 5];
+        const triggerSvg  = [6, 7];
+        for (let t = 0; t < triggerAxes.length; t++) {
+          let val = 0;
+          if (gp.axes.length > triggerAxes[t]) {
+            val = (gp.axes[triggerAxes[t]] + 1) / 2;
+          } else if (gp.buttons[triggerSvg[t]]) {
+            val = gp.buttons[triggerSvg[t]].value;
+          }
+
+          const engaged = val > TRIGGER_THRESHOLD;
+
+          if (engaged && !prevTrig[t]) {
+            flashBtns([triggerSvg[t]]);
+            const name = GAMEPAD_BTN_NAMES[triggerSvg[t]] ?? `Trigger ${t}`;
+            showBanner(name);
+            addLog(`axis[${triggerAxes[t]}] ${name}`, Date.now());
+          }
+          prevTrig[t] = engaged;
+
+          // Proportional SVG bar fill
+          const el = btnEls.get(triggerSvg[t]);
+          if (el) {
+            const fullWidth = 80;
+            el.setAttribute("width", String(Math.max(4, val * fullWidth)));
+            if (engaged) {
+              el.classList.add("active");
+            } else {
+              el.classList.remove("active");
+            }
+          }
+        }
+        _prevTriggers.set(gp.index, prevTrig);
+
+        // ── Left stick (axes 0, 1) ────────────────────────────────────
+        if (gp.axes.length >= 2) {
+          const lx = Math.abs(gp.axes[0]) > DEAD_ZONE ? gp.axes[0] : 0;
+          const ly = Math.abs(gp.axes[1]) > DEAD_ZONE ? gp.axes[1] : 0;
+          updateStickDot(axLeftDot, axLxEl, axLyEl, lx, ly);
+        }
+
+        // ── Right stick (axes 2, 3) ───────────────────────────────────
+        if (gp.axes.length >= 4) {
+          const rx = Math.abs(gp.axes[2]) > DEAD_ZONE ? gp.axes[2] : 0;
+          const ry = Math.abs(gp.axes[3]) > DEAD_ZONE ? gp.axes[3] : 0;
+          updateStickDot(axRightDot, axRxEl, axRyEl, rx, ry);
+        }
+      }
+
+      // ── Raw debug output (first gamepad only) ──────────────────────
+      const firstGp = Array.from(gamepads).find(g => g);
+      if (firstGp) {
+        let btnText = "";
+        for (let i = 0; i < firstGp.buttons.length; i++) {
+          const b = firstGp.buttons[i];
+          const active = b.pressed || b.value > 0.1;
+          const marker = active ? " ◀◀◀" : "";
+          btnText += `[${String(i).padStart(2)}] pressed=${b.pressed ? "T" : "F"}  value=${b.value.toFixed(3)}${marker}\n`;
+        }
+        rawButtonsEl.textContent = btnText || "No buttons";
+
+        let axText = "";
+        for (let i = 0; i < firstGp.axes.length; i++) {
+          const v = firstGp.axes[i];
+          const isTriggerAxis = (i === 4 || i === 5);
+          const active = isTriggerAxis ? v > -0.8 : Math.abs(v) > 0.1;
+          const marker = active ? " ◀◀◀" : "";
+          axText += `[${i}] ${v >= 0 ? " " : ""}${v.toFixed(4)}${marker}\n`;
+        }
+        rawAxesEl.textContent = axText || "No axes";
+      }
+
+      if (_gpPolling) _gpRafId = requestAnimationFrame(pollGamepads);
+    }
+
+    // Check for already-connected gamepads (e.g. page refresh with controller plugged in)
+    const _existingGps = navigator.getGamepads?.() ?? [];
+    for (const gp of _existingGps) {
+      if (gp && gp.connected) _gpConnectedCount++;
+    }
+    if (_gpConnectedCount > 0 && !document.hidden) _gpStartLoop();
+  </script>
+
+</body>
+</html>

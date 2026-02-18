@@ -1,0 +1,41 @@
+{
+  "name": "linux-proton-game-launcher",
+  "version": "0.1.0",
+  "description": "A locally-running Linux game launcher that runs Windows games through Proton",
+  "type": "module",
+  "scripts": {
+    "dev": "tsx watch src/backend/server.ts",
+    "start": "tsx src/backend/server.ts",
+    "build": "tsc --noEmit",
+    "migrate": "tsx src/backend/db/migrate.ts",
+    "db:generate": "drizzle-kit generate",
+    "db:push": "drizzle-kit push",
+    "typecheck": "tsc --noEmit",
+    "test": "node --import tsx/esm --test src/tests/suite.ts",
+    "test:watch": "node --import tsx/esm --test --watch src/tests/suite.ts",
+    "test:verbose": "node --import tsx/esm --test --test-reporter=tap src/tests/suite.ts"
+  },
+  "dependencies": {
+    "@fastify/static": "^8.0.0",
+    "@fastify/websocket": "^11.0.0",
+    "@kmamal/sdl": "^0.9.0",
+    "better-sqlite3": "^11.0.0",
+    "drizzle-orm": "^0.38.0",
+    "fastify": "^5.0.0",
+    "node-fetch": "^3.3.2",
+    "uuid": "^11.0.0",
+    "zod": "^3.23.0"
+  },
+  "devDependencies": {
+    "@types/better-sqlite3": "^7.6.12",
+    "@types/node": "^22.0.0",
+    "@types/uuid": "^10.0.0",
+    "drizzle-kit": "^0.30.0",
+    "pino-pretty": "^13.1.3",
+    "tsx": "^4.19.0",
+    "typescript": "^5.7.0"
+  },
+  "engines": {
+    "node": ">=22.0.0"
+  }
+}
