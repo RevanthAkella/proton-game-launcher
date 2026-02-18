@@ -4,6 +4,9 @@ A locally-running game launcher for Linux that runs Windows games through Proton
 No cloud account required — everything runs on your machine.
 
 ---
+<img width="4096" height="1752" alt="Screenshot from 2026-02-17 23-09-35" src="https://github.com/user-attachments/assets/b5e35585-4cec-4329-a0ed-b35367459b52" />
+<img width="4096" height="1752" alt="Screenshot from 2026-02-17 23-09-40" src="https://github.com/user-attachments/assets/1c7bc108-fa3f-433c-8cd0-cb4b1de4585c" />
+<img width="4096" height="1752" alt="Screenshot from 2026-02-17 23-10-03" src="https://github.com/user-attachments/assets/5c8d8daf-ab6c-4695-8c80-de131b88fa64" />
 
 ## Features
 
